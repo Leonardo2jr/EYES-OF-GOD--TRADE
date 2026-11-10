@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Chart Trading Dashboard - Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f2937',
+                            600: '#374151'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- TradingView Widget Script -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 220px;
+        }
+        /* Canvas overlay for custom technical markings & signal arrows */
+        .chart-overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        /* Glassmorphism Signals Overlay Widget - Fully Transparent */
+        .signals-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 230px;
+            background: rgba(15, 23, 42, 0.35);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            z-index: 20;
+            transition: all 0.3s ease;
+        }
+        /* Fullscreen / Maximized Card Style Overlay */
+        .card-maximized {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 9999 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+        }
+        /* Grid height responsiveness - Strict Uniform Dimensions for PC */
+        .dashboard-grid {
+            display: grid;
+            gap: 0.5rem;
+            width: 100%;
+            height: calc(100vh - 70px);
+            grid-auto-rows: 1fr;
+        }
+        .grid-1x1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+        .grid-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+        .grid-3x3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .grid-4x4 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
+
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                height: auto;
+                min-height: calc(100vh - 70px);
+            }
+            .grid-1x1, .grid-2x2, .grid-3x3, .grid-4x4 {
+                grid-template-columns: 1fr;
+                grid-auto-rows: 420px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden select-none">
+
+    <!-- Top Navigation & Global Controls Bar -->
+    <header class="h-[60px] bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between flex-shrink-0 z-30">
+        <!-- Brand & Watchlist Toggle -->
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleSidebar()" title="Alternar Watchlist" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center">
+                <i class="fa-solid fa-bars text-sm"></i>
+            </button>
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-chart-line text-white text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm leading-tight text-slate-100">ProTrade <span class="text-blue-400 font-mono text-xs">Multi-Grid</span></h1>
+                    <p class="text-[10px] text-slate-400">Terminal Analítico em Tempo Real</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid Matrix Selector & Sidebar Toggle -->
+        <div class="flex items-center space-x-2">
+            <!-- Grid Layout Selector -->
+            <div class="flex items-center bg-slate-800/60 p-0.5 rounded-lg border border-slate-700/50">
+                <span class="text-[11px] text-slate-400 font-medium px-2 hidden sm:inline"><i class="fa-solid fa-table-cells mr-1"></i>Grid:</span>
+                <button onclick="setGrid('1x1')" id="btn-1x1" title="1x1 Grid" class="grid-btn px-2 py-0.5 text-xs font-semibold rounded text-slate-400 hover:text-white hover:bg-slate-700/70 transition">1x1</button>
+                <button onclick="setGrid('2x2')" id="btn-2x2" title="2x2 Grid (4 Gráficos)" class="grid-btn px-2 py-0.5 text-xs font-semibold rounded text-slate-400 hover:text-white hover:bg-slate-700/70 transition bg-slate-700 text-white">2x2</button>
+                <button onclick="setGrid('3x3')" id="btn-3x3" title="3x3 Grid (9 Gráficos)" class="grid-btn px-2 py-0.5 text-xs font-semibold rounded text-slate-400 hover:text-white hover:bg-slate-700/70 transition">3x3</button>
+                <button onclick="setGrid('4x4')" id="btn-4x4" title="4x4 Grid (16 Gráficos)" class="grid-btn px-2 py-0.5 text-xs font-semibold rounded text-slate-400 hover:text-white hover:bg-slate-700/70 transition">4x4</button>
+            </div>
+
+            <!-- Global Actions -->
+            <button onclick="syncAllTimeframes('15')" title="Sincronizar Timeframes para 15m" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs rounded-lg border border-slate-700 transition flex items-center gap-1 font-medium">
+                <i class="fa-solid fa-rotate text-[10px]"></i> Sincronizar
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="flex flex-1 overflow-hidden relative">
+        
+        <!-- Sidebar Watchlist Drawer -->
+        <aside id="sidebarWatchlist" class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 flex-shrink-0 z-20">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider"><i class="fa-solid fa-star text-amber-400 mr-1.5"></i>Ativos & Pares</span>
+                <span class="text-[10px] text-slate-400 font-mono">Drag/Click</span>
+            </div>
+            
+            <!-- Search Watchlist -->
+            <div class="p-2 border-b border-slate-800/60">
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-2.5 top-2 text-slate-500 text-xs"></i>
+                    <input type="text" id="watchlistSearch" placeholder="Buscar ativo..." oninput="filterWatchlist(this.value)"
+                           class="w-full bg-slate-950 text-slate-200 pl-8 pr-2 py-1 rounded text-xs border border-slate-800 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Categories Tabs -->
+            <div class="flex border-b border-slate-800 text-[10px] font-medium overflow-x-auto">
+                <button onclick="filterCategory('ALL')" id="cat_ALL" class="flex-1 py-1.5 px-2 text-blue-400 border-b-2 border-blue-500 bg-slate-800/40 whitespace-nowrap">Todos</button>
+                <button onclick="filterCategory('FOREX')" id="cat_FOREX" class="flex-1 py-1.5 px-2 text-slate-400 hover:text-slate-200 whitespace-nowrap">Forex</button>
+                <button onclick="filterCategory('CRYPTO')" id="cat_CRYPTO" class="flex-1 py-1.5 px-2 text-slate-400 hover:text-slate-200 whitespace-nowrap">Cripto</button>
+                <button onclick="filterCategory('STOCKS')" id="cat_STOCKS" class="flex-1 py-1.5 px-2 text-slate-400 hover:text-slate-200 whitespace-nowrap">Ações</button>
+            </div>
+
+            <!-- Watchlist Items List -->
+            <div id="watchlistItems" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Injected via JS -->
+            </div>
+        </aside>
+
+        <!-- Dynamic Multi-Chart Grid Workspace -->
+        <main class="flex-1 bg-slate-950 p-1.5 overflow-hidden flex flex-col">
+            <div id="chartsGrid" class="dashboard-grid grid-2x2 transition-all duration-300">
+                <!-- Dynamically populated chart cards -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Strategy Selection Modal -->
+    <div id="strategyModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                        <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-xs text-slate-100">Estratégias & Análises Técnicas</h3>
+                        <p class="text-[10px] text-slate-400">Aplicar estudo no Gráfico <span id="modalTargetLabel" class="text-blue-400 font-mono">#1</span></p>
+                    </div>
+                </div>
+                <button onclick="closeStrategyModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Strategy List -->
+            <div class="p-3 max-h-[350px] overflow-y-auto space-y-1.5" id="strategyOptionsList">
+                <!-- Generated dynamically -->
+            </div>
+
+            <div class="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+                <button onclick="closeStrategyModal()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded font-medium transition">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Global State
+        let currentGrid = '2x2';
+        let isSidebarOpen = true;
+        let currentCategoryFilter = 'ALL';
+        let currentSearchQuery = '';
+        let activeStrategyChartIndex = 0;
+        
+        // Storage for active TradingView widget instances to prevent reloading
+        let tvWidgets = {};
+
+        // Strategy Definitions & Corresponding TradingView Studies
+        const strategyPresets = {
+            'w_pattern': {
+                name: 'Padrão W (Duplo Fundo)',
+                studies: ['Volume@tv-basicstudies', 'MACD@tv-basicstudies']
+            },
+            'ma_cross': {
+                name: 'MA Cross (EMA 9/21)',
+                studies: ['MASimple@tv-basicstudies', 'MAExp@tv-basicstudies']
+            },
+            'bb_rsi': {
+                name: 'Bollinger + RSI',
+                studies: ['BB@tv-basicstudies', 'RSI@tv-basicstudies']
+            },
+            'smc_orderblock': {
+                name: 'Smart Money & Vol',
+                studies: ['Volume@tv-basicstudies', 'MAExp@tv-basicstudies']
+            },
+            'breakout_sr': {
+                name: 'Breakout Keltner/ATR',
+                studies: ['KeltnerChannels@tv-basicstudies', 'ATR@tv-basicstudies']
+            },
+            'fibonacci': {
+                name: 'Fibonacci Auto',
+                studies: ['MASimple@tv-basicstudies']
+            },
+            'pivot_points': {
+                name: 'Pivot Points',
+                studies: ['PivotPointsHighLow@tv-basicstudies']
+            },
+            'stoch_macd': {
+                name: 'Stoch + MACD',
+                studies: ['Stochastic@tv-basicstudies', 'MACD@tv-basicstudies']
+            },
+            'vwap_momentum': {
+                name: 'VWAP + Momentum',
+                studies: ['VWAP@tv-basicstudies', 'Momentum@tv-basicstudies']
+            },
+            'clear': {
+                name: 'Limpar Estudos',
+                studies: []
+            }
+        };
+
+        // Active State of Chart Cards (Supports up to 16 charts for 4x4)
+        let chartCards = [
+            { id: 0, symbol: 'FX:EURUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 1, symbol: 'OANDA:XAUUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 2, symbol: 'BINANCE:BTCUSDT', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 3, symbol: 'BMFBOVESPA:PETR4', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 4, symbol: 'FOREXCOM:SPXUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 5, symbol: 'NASDAQ:NVDA', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 6, symbol: 'FX:GBPUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 7, symbol: 'TVC:USOIL', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 8, symbol: 'FX:USDJPY', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 9, symbol: 'BINANCE:ETHUSDT', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 10, symbol: 'BMFBOVESPA:VALE3', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 11, symbol: 'OANDA:XAGUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 12, symbol: 'NASDAQ:AAPL', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 13, symbol: 'NASDAQ:TSLA', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 14, symbol: 'FOREXCOM:NSXUSD', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null },
+            { id: 15, symbol: 'BMFBOVESPA:IBOV', timeframe: '15', style: '1', activeStrategy: '', isMaximized: false, showSignals: false, pullbackState: null }
+        ];
+
+        // Active intervals for signal timers
+        let signalTimers = {};
+
+        // Watchlist data source
+        let watchlist = [
+            { symbol: 'FX:EURUSD', name: 'EUR / USD', category: 'FOREX' },
+            { symbol: 'FX:GBPUSD', name: 'GBP / USD', category: 'FOREX' },
+            { symbol: 'FX:USDJPY', name: 'USD / JPY', category: 'FOREX' },
+            { symbol: 'FX:AUDUSD', name: 'AUD / USD', category: 'FOREX' },
+            { symbol: 'OANDA:XAUUSD', name: 'Ouro (Gold)', category: 'FOREX' },
+            { symbol: 'OANDA:XAGUSD', name: 'Prata (Silver)', category: 'FOREX' },
+            { symbol: 'BINANCE:BTCUSDT', name: 'Bitcoin / USDT', category: 'CRYPTO' },
+            { symbol: 'BINANCE:ETHUSDT', name: 'Ethereum / USDT', category: 'CRYPTO' },
+            { symbol: 'BINANCE:SOLUSDT', name: 'Solana / USDT', category: 'CRYPTO' },
+            { symbol: 'BMFBOVESPA:PETR4', name: 'Petrobras PN', category: 'STOCKS' },
+            { symbol: 'BMFBOVESPA:VALE3', name: 'Vale ON', category: 'STOCKS' },
+            { symbol: 'BMFBOVESPA:ITUB4', name: 'Itaú Unibanco', category: 'STOCKS' },
+            { symbol: 'NASDAQ:AAPL', name: 'Apple Inc', category: 'STOCKS' },
+            { symbol: 'NASDAQ:NVDA', name: 'NVIDIA Corp', category: 'STOCKS' },
+            { symbol: 'NASDAQ:TSLA', name: 'Tesla Inc', category: 'STOCKS' },
+            { symbol: 'FOREXCOM:SPXUSD', name: 'S&P 500 Index', category: 'FOREX' },
+            { symbol: 'TVC:USOIL', name: 'WTI Crude Oil', category: 'FOREX' }
+        ];
+
+        window.onload = function() {
+            renderWatchlist();
+            renderDashboard();
+            buildStrategyModalOptions();
+        };
+
+        function toggleSidebar() {
+            isSidebarOpen = !isSidebarOpen;
+            const sb = document.getElementById('sidebarWatchlist');
+            if (isSidebarOpen) {
+                sb.classList.remove('w-0', 'opacity-0', 'overflow-hidden');
+                sb.classList.add('w-64');
+            } else {
+                sb.classList.remove('w-64');
+                sb.classList.add('w-0', 'opacity-0', 'overflow-hidden');
+            }
+        }
+
+        function filterCategory(cat) {
+            currentCategoryFilter = cat;
+            ['ALL', 'FOREX', 'CRYPTO', 'STOCKS'].forEach(c => {
+                const btn = document.getElementById(`cat_${c}`);
+                if (!btn) return;
+                if (c === cat) {
+                    btn.className = "flex-1 py-1.5 px-2 text-blue-400 border-b-2 border-blue-500 bg-slate-800/40 whitespace-nowrap";
+                } else {
+                    btn.className = "flex-1 py-1.5 px-2 text-slate-400 hover:text-slate-200 whitespace-nowrap";
+                }
+            });
+            renderWatchlist();
+        }
+
+        function filterWatchlist(query) {
+            currentSearchQuery = query.toLowerCase();
+            renderWatchlist();
+        }
+
+        function renderWatchlist() {
+            const container = document.getElementById('watchlistItems');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const filtered = watchlist.filter(item => {
+                const matchCat = currentCategoryFilter === 'ALL' || item.category === currentCategoryFilter;
+                const matchQuery = item.symbol.toLowerCase().includes(currentSearchQuery) || item.name.toLowerCase().includes(currentSearchQuery);
+                return matchCat && matchQuery;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-500 text-[11px] py-4">Nenhum ativo encontrado</div>';
+                return;
+            }
+
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "p-1.5 bg-slate-950/40 hover:bg-slate-800/60 border border-slate-800/80 rounded flex items-center justify-between cursor-pointer transition group";
+                div.innerHTML = `
+                    <div class="truncate">
+                        <div class="font-bold text-[11px] text-slate-200 group-hover:text-blue-400 font-mono">${item.symbol}</div>
+                        <div class="text-[9px] text-slate-400 truncate">${item.name}</div>
+                    </div>
+                    <div class="flex space-x-1">
+                        <button onclick="assignToActiveChart('${item.symbol}')" title="Enviar para Gráfico Ativo" class="px-1.5 py-0.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded text-[9px] transition">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function getGridCount(gridStr) {
+            switch(gridStr) {
+                case '1x1': return 1;
+                case '2x2': return 4;
+                case '3x3': return 9;
+                case '4x4': return 16;
+                default: return 4;
+            }
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('chartsGrid');
+            container.className = `dashboard-grid grid-${currentGrid} transition-all duration-300`;
+            container.innerHTML = '';
+
+            const count = getGridCount(currentGrid);
+
+            for (let i = 0; i < count; i++) {
+                const card = chartCards[i];
+                const cardDiv = document.createElement('div');
+                const isMax = card.isMaximized;
+                
+                cardDiv.className = `bg-slate-900 border ${isMax ? 'border-blue-500 card-maximized' : 'border-slate-800'} rounded-lg flex flex-col overflow-hidden shadow-lg h-full min-h-0 transition-all duration-200`;
+                cardDiv.id = `chart-card-${i}`;
+
+                const strategyBadge = card.activeStrategy 
+                    ? `<span id="badge_strat_${i}" class="bg-blue-600/20 text-blue-400 border border-blue-500/30 text-[10px] px-1.5 py-0.5 rounded font-mono truncate max-w-[100px]"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-[9px]"></i>${strategyPresets[card.activeStrategy]?.name || 'Estratégia'}</span>`
+                    : `<span id="badge_strat_${i}" class="hidden"></span>`;
+
+                cardDiv.innerHTML = `
+                    <!-- Card Controls Header Bar -->
+                    <div class="h-8 bg-slate-900/90 border-b border-slate-800/80 px-2 flex items-center justify-between text-xs select-none flex-shrink-0">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <input type="text" value="${card.symbol}" 
+                                   class="bg-slate-800 text-slate-100 font-bold px-1 py-0.2 rounded text-[10px] w-24 uppercase border border-slate-700/80 focus:outline-none focus:border-blue-500"
+                                   onchange="updateCardSymbol(${i}, this.value)">
+                            ${strategyBadge}
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <select onchange="updateCardTimeframe(${i}, this.value)" class="bg-slate-800 text-slate-300 border border-slate-700 rounded px-1 py-0.2 text-[10px] focus:outline-none">
+                                <option value="1" ${card.timeframe === '1' ? 'selected' : ''}>1m</option>
+                                <option value="5" ${card.timeframe === '5' ? 'selected' : ''}>5m</option>
+                                <option value="15" ${card.timeframe === '15' ? 'selected' : ''}>15m</option>
+                                <option value="60" ${card.timeframe === '60' ? 'selected' : ''}>1h</option>
+                                <option value="240" ${card.timeframe === '240' ? 'selected' : ''}>4h</option>
+                                <option value="D" ${card.timeframe === 'D' ? 'selected' : ''}>1D</option>
+                            </select>
+
+                            <select onchange="updateCardStyle(${i}, this.value)" class="bg-slate-800 text-slate-300 border border-slate-700 rounded px-1 py-0.2 text-[10px] focus:outline-none">
+                                <option value="1" ${card.style === '1' ? 'selected' : ''}>Velas</option>
+                                <option value="0" ${card.style === '0' ? 'selected' : ''}>Barras</option>
+                                <option value="2" ${card.style === '2' ? 'selected' : ''}>Linha</option>
+                                <option value="3" ${card.style === '3' ? 'selected' : ''}>Área</option>
+                                <option value="8" ${card.style === '8' ? 'selected' : ''}>Heikin Ashi</option>
+                            </select>
+
+                            <button onclick="toggleCardMaximize(${i})" title="${isMax ? 'Diminuir / Restaurar' : 'Maximizar Gráfico'}" 
+                                    class="p-0.5 px-1 rounded bg-slate-800 hover:bg-slate-700 ${isMax ? 'text-amber-400 border border-amber-500/40' : 'text-slate-300 hover:text-white'} transition flex items-center gap-1">
+                                <i class="fa-solid ${isMax ? 'fa-compress text-[10px]' : 'fa-expand text-[10px]'}"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TradingView Chart Container with Overlay Canvas -->
+                    <div class="flex-1 w-full h-full relative min-h-0" id="tv_widget_wrapper_${i}" onclick="setActiveChartIndex(${i})">
+                        <div class="w-full h-full" id="tv_widget_container_${i}"></div>
+                        <canvas id="overlay_canvas_${i}" class="chart-overlay-canvas"></canvas>
+                        <div id="signals_panel_container_${i}"></div>
+                    </div>
+
+                    <!-- Bottom Action Bar / Controls -->
+                    <div class="h-8 bg-slate-900 border-t border-slate-800/80 px-2 flex items-center justify-between gap-1 text-xs flex-shrink-0 select-none">
+                        <button onclick="openStrategyModal(${i})" class="flex-1 py-0.5 px-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded font-semibold text-[10px] flex items-center justify-center gap-1 transition truncate">
+                            <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i> Estratégias
+                        </button>
+                        <button id="signals_btn_${i}" onclick="toggleCardSignals(${i})" class="py-0.5 px-2 ${card.showSignals ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'} rounded font-semibold text-[10px] flex items-center justify-center gap-1 transition">
+                            <i class="fa-solid fa-bolt text-[9px]"></i> Sinais
+                        </button>
+                        <button onclick="toggleCardMaximize(${i})" title="${isMax ? 'Restaurar Tamanho Normal' : 'Maximizar Gráfico'}"
+                                class="py-0.5 px-1.5 ${isMax ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'} border border-slate-700 rounded font-semibold text-[10px] flex items-center gap-1 transition">
+                            <i class="fa-solid ${isMax ? 'fa-compress' : 'fa-expand'} text-[9px]"></i>
+                        </button>
+                    </div>
+                `;
+
+                container.appendChild(cardDiv);
+                
+                initTradingViewWidget(i, card.symbol, card.timeframe, card.style, card.activeStrategy);
+                updateSignalsPanelUI(i);
+                setTimeout(() => drawStrategyMarkings(i), 300);
+            }
+        }
+
+        function setActiveChartIndex(index) {
+            activeStrategyChartIndex = index;
+        }
+
+        function assignToActiveChart(symbol) {
+            const i = activeStrategyChartIndex || 0;
+            if (chartCards[i]) {
+                chartCards[i].symbol = symbol;
+                renderDashboard();
+            }
+        }
+
+        function initTradingViewWidget(index, symbol, interval, style, strategyKey) {
+            const containerId = `tv_widget_container_${index}`;
+            if (!document.getElementById(containerId)) return;
+            
+            document.getElementById(containerId).innerHTML = '';
+
+            const studiesList = strategyKey && strategyPresets[strategyKey] ? strategyPresets[strategyKey].studies : [];
+
+            try {
+                tvWidgets[index] = new TradingView.widget({
+                    "width": "100%",
+                    "height": "100%",
+                    "symbol": symbol,
+                    "interval": interval,
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": style,
+                    "locale": "br",
+                    "toolbar_bg": "#111827",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "hide_legend": false,
+                    "save_image": false,
+                    "container_id": containerId,
+                    "studies": studiesList
+                });
+            } catch (e) {
+                console.error("TV Widget Error:", e);
+            }
+        }
+
+        function setGrid(gridStr) {
+            currentGrid = gridStr;
+            document.querySelectorAll('.grid-btn').forEach(b => {
+                b.classList.remove('bg-slate-700', 'text-white');
+                b.classList.add('text-slate-400');
+            });
+            const activeBtn = document.getElementById(`btn-${gridStr}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-slate-700', 'text-white');
+                activeBtn.classList.remove('text-slate-400');
+            }
+            renderDashboard();
+        }
+
+        function updateCardSymbol(index, val) {
+            chartCards[index].symbol = val.toUpperCase();
+            initTradingViewWidget(index, chartCards[index].symbol, chartCards[index].timeframe, chartCards[index].style, chartCards[index].activeStrategy);
+        }
+
+        function updateCardTimeframe(index, val) {
+            chartCards[index].timeframe = val;
+            initTradingViewWidget(index, chartCards[index].symbol, chartCards[index].timeframe, chartCards[index].style, chartCards[index].activeStrategy);
+        }
+
+        function updateCardStyle(index, val) {
+            chartCards[index].style = val;
+            initTradingViewWidget(index, chartCards[index].symbol, chartCards[index].timeframe, chartCards[index].style, chartCards[index].activeStrategy);
+        }
+
+        function toggleCardMaximize(index) {
+            chartCards[index].isMaximized = !chartCards[index].isMaximized;
+            renderDashboard();
+        }
+
+        function syncAllTimeframes(tf) {
+            const count = getGridCount(currentGrid);
+            for (let i = 0; i < count; i++) {
+                chartCards[i].timeframe = tf;
+            }
+            renderDashboard();
+        }
+
+        function openStrategyModal(index) {
+            activeStrategyChartIndex = index;
+            document.getElementById('modalTargetLabel').innerText = `#${index + 1} (${chartCards[index].symbol})`;
+            document.getElementById('strategyModal').classList.remove('hidden');
+        }
+
+        function closeStrategyModal() {
+            document.getElementById('strategyModal').classList.add('hidden');
+        }
+
+        function buildStrategyModalOptions() {
+            const list = document.getElementById('strategyOptionsList');
+            if (!list) return;
+            list.innerHTML = '';
+
+            Object.keys(strategyPresets).forEach(key => {
+                const strat = strategyPresets[key];
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-2 rounded bg-slate-950/40 hover:bg-blue-600/20 border border-slate-800 hover:border-blue-500/40 flex items-center justify-between transition group";
+                btn.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-pie text-blue-400 text-xs"></i>
+                        <span class="text-xs font-semibold text-slate-200 group-hover:text-white">${strat.name || 'Limpar Estudos'}</span>
+                    </div>
+                    <span class="text-[10px] text-blue-400 bg-blue-600/10 px-2 py-0.5 rounded border border-blue-500/30">Aplicar</span>
+                `;
+                btn.onclick = () => applyStrategyToActiveChart(key);
+                list.appendChild(btn);
+            });
+        }
+
+        function applyStrategyToActiveChart(stratKey) {
+            const i = activeStrategyChartIndex;
+            chartCards[i].activeStrategy = stratKey === 'clear' ? '' : stratKey;
+            closeStrategyModal();
+            renderDashboard();
+        }
+
+        function toggleCardSignals(index) {
+            const card = chartCards[index];
+            card.showSignals = !card.showSignals;
+            
+            if (card.showSignals) {
+                runPullbackEngine(index);
+            } else {
+                if (signalTimers[index]) clearInterval(signalTimers[index]);
+            }
+            updateSignalsPanelUI(index);
+            setTimeout(() => drawStrategyMarkings(index), 100);
+        }
+
+        function runPullbackEngine(index) {
+            const card = chartCards[index];
+            if (signalTimers[index]) clearInterval(signalTimers[index]);
+
+            card.pullbackState = {
+                type: 'ANALYZING',
+                title: 'IA Varrendo Gráfico...',
+                entryPoint: 'Calculando...',
+                pullbackLevel: 'Detectando Fibo...',
+                confidence: 0,
+                timer: 5
+            };
+            updateSignalsPanelUI(index);
+            setTimeout(() => drawStrategyMarkings(index), 100);
+
+            setTimeout(() => {
+                if (!card.showSignals) return;
+                const isCall = Math.random() > 0.5;
+                const entry = (Math.random() * 100 + 1000).toFixed(2);
+                const conf = Math.floor(Math.random() * 9 + 88); // 88% to 96%
+
+                card.pullbackState = {
+                    type: isCall ? 'CALL' : 'PUT',
+                    title: isCall ? 'PULLBACK COMPRA' : 'PULLBACK VENDA',
+                    entryPoint: entry,
+                    pullbackLevel: '61.8% Retração',
+                    confidence: conf,
+                    timer: 60
+                };
+                updateSignalsPanelUI(index);
+                setTimeout(() => drawStrategyMarkings(index), 100);
+
+                signalTimers[index] = setInterval(() => {
+                    if (!card.pullbackState || card.pullbackState.timer <= 1) {
+                        clearInterval(signalTimers[index]);
+                        if (card.showSignals) runPullbackEngine(index);
+                        return;
+                    }
+                    card.pullbackState.timer--;
+                    const timerEl = document.getElementById(`signal_timer_${index}`);
+                    if (timerEl) timerEl.innerText = card.pullbackState.timer + 's';
+                }, 1000);
+            }, 2500);
+        }
+
+        function updateSignalsPanelUI(index) {
+            const container = document.getElementById(`signals_panel_container_${index}`);
+            if (!container) return;
+            const card = chartCards[index];
+
+            if (!card.showSignals) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const state = card.pullbackState || { type: 'ANALYZING', title: 'Analisando...', entryPoint: '...', pullbackLevel: '...', confidence: 0, timer: 5 };
+            const isAnalyzing = state.type === 'ANALYZING';
+            const isCall = state.type === 'CALL';
+
+            container.innerHTML = `
+                <div class="signals-overlay p-2.5 text-xs text-slate-100">
+                    <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-700/50">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-400 animate-ping' : (isCall ? 'bg-emerald-500' : 'bg-rose-500')}"></span>
+                            <span class="font-bold text-[11px] text-slate-200">${state.title}</span>
+                        </div>
+                        <button onclick="toggleCardSignals(${index})" class="text-slate-400 hover:text-white px-1"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    ${isAnalyzing ? `
+                        <div class="py-3 text-center">
+                            <i class="fa-solid fa-circle-notch fa-spin text-blue-400 text-sm mb-1"></i>
+                            <div class="text-[10px] text-slate-300">Varrendo Padrões & Pullbacks...</div>
+                        </div>
+                    ` : `
+                        <div class="space-y-1 text-[10px]">
+                            <div class="flex justify-between"><span class="text-slate-400">Direção:</span><span class="font-bold ${isCall ? 'text-emerald-400' : 'text-rose-400'}">${isCall ? 'COMPRA (CALL)' : 'VENDA (PUT)'}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Gatilho:</span><span class="font-mono text-slate-200">${state.entryPoint}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Nível Fibo:</span><span class="text-slate-300">${state.pullbackLevel}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Assertividade:</span><span class="text-emerald-400 font-bold">${state.confidence}%</span></div>
+                            <div class="flex justify-between items-center pt-1 border-t border-slate-700/50 mt-1">
+                                <span class="text-slate-400">Expiração:</span>
+                                <span id="signal_timer_${index}" class="font-mono bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded font-bold">${state.timer}s</span>
+                            </div>
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function drawStrategyMarkings(index) {
+            const canvas = document.getElementById(`overlay_canvas_${index}`);
+            if (!canvas) return;
+            const wrapper = document.getElementById(`tv_widget_wrapper_${index}`);
+            if (!wrapper) return;
+
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const card = chartCards[index];
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Check if W Pattern strategy is active
+            if (card.activeStrategy === 'w_pattern') {
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                // Draw W formation (Double Bottom)
+                ctx.moveTo(w * 0.15, h * 0.35);
+                ctx.lineTo(w * 0.30, h * 0.75); // First bottom
+                ctx.lineTo(w * 0.45, h * 0.45); // Center peak
+                ctx.lineTo(w * 0.60, h * 0.75); // Second bottom
+                ctx.lineTo(w * 0.85, h * 0.30); // Breakout target
+                ctx.stroke();
+
+                // Neckline
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(w * 0.15, h * 0.45);
+                ctx.lineTo(w * 0.90, h * 0.45);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                // Draw standard support / resistance lines
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.3);
+                ctx.lineTo(w, h * 0.3);
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.7);
+                ctx.lineTo(w, h * 0.7);
+                ctx.stroke();
+
+                ctx.setLineDash([]);
+            }
+
+            // Draw Signal Arrow if active
+            if (card.showSignals && card.pullbackState && (card.pullbackState.type === 'CALL' || card.pullbackState.type === 'PUT')) {
+                const isCall = card.pullbackState.type === 'CALL';
+                const arrowX = w * 0.65;
+                const arrowY = isCall ? h * 0.55 : h * 0.45;
+
+                ctx.fillStyle = isCall ? '#10b981' : '#ef4444';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                if (isCall) {
+                    // Green Arrow Up
+                    ctx.moveTo(arrowX, arrowY - 15);
+                    ctx.lineTo(arrowX - 10, arrowY + 5);
+                    ctx.lineTo(arrowX + 10, arrowY + 5);
+                } else {
+                    // Red Arrow Down
+                    ctx.moveTo(arrowX, arrowY + 15);
+                    ctx.lineTo(arrowX - 10, arrowY - 5);
+                    ctx.lineTo(arrowX + 10, arrowY - 5);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Text badge near arrow
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(isCall ? 'CALL ENTRY' : 'PUT ENTRY', arrowX - 25, isCall ? arrowY + 20 : arrowY - 12);
+            }
+        }
+    </script>
+</body>
+</html>
