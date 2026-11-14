@@ -78,27 +78,6 @@
             box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.15);
         }
 
-        /* High-Visibility Center Candle Timer Badge */
-        .candle-timer-center {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 15;
-            pointer-events: none;
-            background: rgba(7, 7, 9, 0.82);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(212, 175, 55, 0.5);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.9), 0 0 15px rgba(212, 175, 55, 0.2);
-            padding: 6px 14px;
-            border-radius: 9999px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-
         /* AI Scanner Animation */
         @keyframes scanLine {
             0% { transform: translateY(-100%); opacity: 0; }
@@ -173,7 +152,7 @@
     <header class="h-[60px] bg-carbon border-b gold-border-subtle px-3 sm:px-4 flex items-center justify-between flex-shrink-0 z-30 shadow-lg">
         <!-- Brand & Watchlist Toggle -->
         <div class="flex items-center space-x-2.5 sm:space-x-3">
-            <button onclick="toggleSidebar()" title="Alternar Watchlist VIP" class="p-2 rounded-lg bg-charcoal hover:bg-zinc-800 text-gold border border-gold/20 hover:border-gold/50 transition flex items-center justify-center">
+            <button id="sidebarToggleBtn" onclick="toggleSidebar()" title="Alternar Watchlist VIP" class="p-2 rounded-lg bg-charcoal hover:bg-zinc-800 text-gold border border-gold/20 hover:border-gold/50 transition flex items-center justify-center">
                 <i class="fa-solid fa-bars text-sm"></i>
             </button>
             <div class="flex items-center space-x-2.5">
@@ -183,12 +162,24 @@
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <h1 class="font-extrabold text-sm sm:text-base leading-tight tracking-wide text-slate-100">L&amp;L-TraderPro</h1>
                     <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-widest bg-gold/10 text-gold border border-gold/30 rounded hidden xs:inline-block">BLACK EDITION</span>
+                    
+                    <!-- Botão Gerenciamento (quando na tela de gráficos) -->
+                    <button id="navRiskBtn" onclick="openRiskManagement()" class="ml-1.5 px-2.5 py-1 bg-gold/15 hover:bg-gold text-gold hover:text-obsidian border border-gold/40 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm">
+                        <i class="fa-solid fa-table-list text-[10px]"></i>
+                        <span>Gerenciamento</span>
+                    </button>
+
+                    <!-- Botão Voltar (visível no menu superior ao entrar em Gerenciamento) -->
+                    <button id="navBackBtn" onclick="closeRiskManagement()" class="hidden ml-1.5 px-3 py-1 bg-gold hover:bg-gold-light text-obsidian border border-gold-light/60 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 transition shadow-md shadow-gold/25">
+                        <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                        <span>Voltar aos Gráficos</span>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Grid Matrix Selector & Global Sync -->
-        <div class="flex items-center space-x-1.5 sm:space-x-2">
+        <!-- Grid Matrix Selector & Global Sync (Oculto quando em Gerenciamento) -->
+        <div id="headerChartControls" class="flex items-center space-x-1.5 sm:space-x-2">
             <div class="flex items-center bg-charcoal/90 p-0.5 rounded-lg border border-gold/20">
                 <span class="text-[11px] text-gold/80 font-medium px-2 hidden md:inline"><i class="fa-solid fa-table-cells mr-1"></i>Grid:</span>
                 <button onclick="setGrid('1x1')" id="btn-1x1" title="1x1 Grid" class="grid-btn px-2 py-1 text-xs font-semibold rounded text-slate-400 hover:text-gold transition">1x1</button>
@@ -201,10 +192,17 @@
                 <i class="fa-solid fa-rotate text-[10px]"></i> <span class="hidden sm:inline">Sincronizar</span>
             </button>
         </div>
+
+        <!-- Status Badge no Menu Superior quando em Gerenciamento -->
+        <div id="headerRiskStatus" class="hidden items-center gap-2">
+            <span class="px-2.5 py-1 bg-gold/10 border border-gold/30 rounded-lg text-[11px] font-mono font-bold text-gold-light hidden sm:inline-flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved text-gold text-[10px]"></i> GESTÃO DE BANCA VIP
+            </span>
+        </div>
     </header>
 
     <!-- Main Workspace Area -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div id="tradingWorkspace" class="flex flex-1 overflow-hidden relative">
         
         <!-- Sidebar Watchlist Drawer -->
         <aside id="sidebarWatchlist" class="w-64 max-w-[80vw] bg-carbon border-r gold-border-subtle flex flex-col transition-all duration-300 flex-shrink-0 z-20 absolute md:relative h-full shadow-2xl md:shadow-none">
@@ -244,6 +242,80 @@
         </main>
     </div>
 
+    <!-- Risk Management (Planilha de Gerenciamento 2x1 / 4x2) View -->
+    <div id="riskManagementView" class="hidden flex-1 bg-obsidian flex flex-col overflow-hidden z-20">
+        <!-- Sub-header da Planilha -->
+        <div class="bg-carbon border-b gold-border-subtle px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div>
+                    <h2 class="text-sm sm:text-base font-extrabold text-gold-light tracking-wide flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-gold"></i> Planilha de Gerenciamento Automático
+                    </h2>
+                    <p class="text-[10px] text-slate-400">Cálculo de Soros &amp; Alavancagem Diária (1ª à 5ª Entrada)</p>
+                </div>
+            </div>
+
+            <!-- Controles do Trader, Aba (2x1 / 4x2) e % Entrada -->
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div class="flex items-center bg-charcoal border border-gold/25 rounded-lg px-2.5 py-1">
+                    <span class="text-[10px] text-gold/80 font-mono uppercase mr-2">Trader:</span>
+                    <input type="text" id="traderNameInput" value="L&L VIP TRADER"
+                           class="bg-transparent text-xs font-bold text-slate-100 focus:outline-none w-32 sm:w-40">
+                </div>
+
+                <div class="flex items-center bg-charcoal border border-gold/25 rounded-lg px-2.5 py-1" title="Percentual da Banca na 1ª Entrada">
+                    <span class="text-[10px] text-gold/80 font-mono uppercase mr-1.5">1ª Entrada %:</span>
+                    <input type="number" id="entryPercentInput" value="5" min="1" max="100" step="0.5" onchange="recalculateAllRiskRows()"
+                           class="bg-obsidian text-gold-light font-mono font-bold text-xs w-12 text-center rounded border border-gold/20 focus:outline-none">
+                    <span class="text-xs text-gold ml-1">%</span>
+                </div>
+
+                <!-- Abas 2x1 e 4x2 igual à planilha -->
+                <div class="flex bg-charcoal p-0.5 rounded-lg border border-gold/30">
+                    <button onclick="switchRiskTab('2x1')" id="tab-2x1" class="px-3 py-1 text-xs font-extrabold rounded-md bg-gold text-obsidian transition">2x1</button>
+                    <button onclick="switchRiskTab('4x2')" id="tab-4x2" class="px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-gold transition">4x2</button>
+                </div>
+
+                <button onclick="resetRiskSheet()" title="Limpar Planilha" class="px-2.5 py-1.5 bg-rose-950/50 hover:bg-rose-900/70 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabela Planilha Horizontal Responsiva -->
+        <div class="flex-1 overflow-auto p-2 sm:p-4">
+            <div class="bg-carbon border border-gold/30 rounded-xl shadow-2xl overflow-x-auto">
+                <table class="w-full border-collapse text-xs font-mono whitespace-nowrap">
+                    <thead>
+                        <tr class="bg-charcoal text-gold border-b border-gold/40 text-[11px] uppercase tracking-wider">
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center bg-gold/15 text-gold-light font-extrabold sticky left-0 z-10">Dia</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right">Banca Atual</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right bg-gold/5">1ª Entrada</th>
+                            <th class="py-2.5 px-2 border-r border-gold/20 text-center">Payout</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center">Selecionar</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right bg-gold/5">2ª Entrada</th>
+                            <th class="py-2.5 px-2 border-r border-gold/20 text-center">Payout</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center">Selecionar</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right bg-gold/5">3ª Entrada</th>
+                            <th class="py-2.5 px-2 border-r border-gold/20 text-center">Payout</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center">Selecionar</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right bg-gold/5">4ª Entrada</th>
+                            <th class="py-2.5 px-2 border-r border-gold/20 text-center">Payout</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center">Selecionar</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-right bg-gold/5">5ª Entrada</th>
+                            <th class="py-2.5 px-2 border-r border-gold/20 text-center">Payout</th>
+                            <th class="py-2.5 px-3 border-r border-gold/20 text-center">Selecionar</th>
+                            <th class="py-2.5 px-4 text-right bg-gold/20 text-gold-light font-extrabold">Banca Final</th>
+                        </tr>
+                    </thead>
+                    <tbody id="riskTableBody" class="divide-y divide-zinc-800/80">
+                        <!-- Linhas 1 a 31 geradas via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Strategy Selection Modal -->
     <div id="strategyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-carbon border border-gold/40 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col gold-glow">
@@ -281,7 +353,6 @@
         let currentSearchQuery = '';
         let activeStrategyChartIndex = 0;
         let tvWidgets = {};
-        let globalClockInterval = null;
 
         // Strategy Presets synced with AI Logic
         const strategyPresets = {
@@ -519,7 +590,6 @@
             const stratKey = card.activeStrategy || 'clear';
             const stratObj = strategyPresets[stratKey] || strategyPresets['clear'];
             
-            // Calculate Next Candle Opening Time based on real clock & timeframe
             const now = new Date();
             let intervalMinutes = 15;
             if (card.timeframe === '1') intervalMinutes = 1;
@@ -532,21 +602,18 @@
             const currentMinutes = now.getMinutes();
             const currentSeconds = now.getSeconds();
             
-            // Minutes elapsed in current candle block
             const minutesInCurrentCandle = currentMinutes % intervalMinutes;
             const remainingMinutes = intervalMinutes - minutesInCurrentCandle - 1;
             const remainingSeconds = 60 - currentSeconds;
             
-            // Target Date/Time for Next Candle Open
             const nextCandleTime = new Date(now.getTime() + (remainingMinutes * 60 + remainingSeconds) * 1000);
             const nextCandleTimeStr = nextCandleTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-            // Intelligent Multi-factor Calculation
             const seed = (card.symbol + stratKey + card.timeframe + Math.floor(now.getTime() / (intervalMinutes * 60000)))
                 .split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
             
             const isBuy = seed % 2 === 0;
-            const confidence = 82 + (seed % 15); // High-certainty threshold
+            const confidence = 82 + (seed % 15);
             const rrRatio = isBuy ? '1 : 2.8' : '1 : 3.2';
 
             const realTimeClock = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -602,10 +669,8 @@
 
             container.innerHTML = `
                 <div class="ai-glass-panel absolute top-2.5 right-2.5 w-72 max-w-[92%] rounded-2xl p-3.5 z-20 text-left overflow-hidden shadow-2xl">
-                    <!-- Top Luxury Scanner Line -->
                     <div class="ai-scanner-bar absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent opacity-75"></div>
                     
-                    <!-- Header -->
                     <div class="flex items-center justify-between border-b border-gold/20 pb-2.5 mb-3">
                         <div class="flex items-center gap-2">
                             <div class="w-6 h-6 rounded-lg bg-gold/15 border border-gold/30 flex items-center justify-center text-gold">
@@ -626,7 +691,6 @@
                         </div>
                     </div>
 
-                    <!-- Synced Strategy Pill -->
                     <div class="flex items-center justify-between bg-charcoal/80 border border-gold/20 rounded-xl px-2.5 py-1.5 mb-2.5">
                         <span class="text-[9px] text-slate-400 uppercase font-mono">Setup:</span>
                         <span class="text-[10px] font-bold text-gold-light truncate max-w-[175px] flex items-center gap-1">
@@ -634,7 +698,6 @@
                         </span>
                     </div>
 
-                    <!-- Main Signal Action Card -->
                     <div class="${statusBg} border rounded-xl p-2.5 mb-2.5">
                         <div class="flex items-center justify-between mb-1.5">
                             <span class="text-[9px] text-slate-400 font-mono uppercase tracking-wider">Entrada: Próxima Vela (${card.timeframe}m)</span>
@@ -660,7 +723,6 @@
                         </div>
                     </div>
 
-                    <!-- Technical Analysis Box -->
                     <div class="bg-obsidian/80 border border-gold/15 rounded-xl p-2.5">
                         <div class="text-[9px] font-mono text-gold/80 uppercase tracking-wider mb-1 flex items-center gap-1">
                             <i class="fa-solid fa-align-left text-[8px]"></i> Leitura Técnica
@@ -670,7 +732,6 @@
                         </p>
                     </div>
 
-                    <!-- Footer Timestamp -->
                     <div class="flex items-center justify-between text-[8px] text-slate-500 font-mono mt-2 px-0.5">
                         <span><i class="fa-solid fa-circle text-emerald-500 text-[6px] mr-1"></i>Sincronizado</span>
                         <span>Atualizado às ${data.timestamp}</span>
@@ -885,6 +946,222 @@
                 renderDashboard();
             }
             closeStrategyModal();
+        }
+
+        // ==========================================
+        // PLANILHA DE GERENCIAMENTO (2x1 e 4x2)
+        // ==========================================
+        let currentRiskTab = '2x1';
+        let riskData = {
+            '2x1': createDefaultRiskRows(25),
+            '4x2': createDefaultRiskRows(5)
+        };
+
+        function createDefaultRiskRows(defaultPct) {
+            const rows = [];
+            for (let d = 1; d <= 31; d++) {
+                rows.push({
+                    day: d,
+                    bankroll: d === 1 ? 1000 : '',
+                    entries: [
+                        { payout: 92, result: '' },
+                        { payout: 92, result: '' },
+                        { payout: 92, result: '' },
+                        { payout: 92, result: '' },
+                        { payout: 92, result: '' }
+                    ]
+                });
+            }
+            return rows;
+        }
+
+        function openRiskManagement() {
+            document.getElementById('tradingWorkspace').classList.add('hidden');
+            document.getElementById('riskManagementView').classList.remove('hidden');
+            
+            // Alternar botões e controles no menu superior
+            document.getElementById('navRiskBtn').classList.add('hidden');
+            document.getElementById('navBackBtn').classList.remove('hidden');
+            document.getElementById('sidebarToggleBtn').classList.add('hidden');
+            document.getElementById('headerChartControls').classList.add('hidden');
+            document.getElementById('headerRiskStatus').classList.remove('hidden');
+            document.getElementById('headerRiskStatus').classList.add('flex');
+
+            renderRiskTable();
+        }
+
+        function closeRiskManagement() {
+            document.getElementById('riskManagementView').classList.add('hidden');
+            document.getElementById('tradingWorkspace').classList.remove('hidden');
+
+            // Restaurar botões e controles no menu superior
+            document.getElementById('navBackBtn').classList.add('hidden');
+            document.getElementById('navRiskBtn').classList.remove('hidden');
+            document.getElementById('sidebarToggleBtn').classList.remove('hidden');
+            document.getElementById('headerChartControls').classList.remove('hidden');
+            document.getElementById('headerRiskStatus').classList.add('hidden');
+            document.getElementById('headerRiskStatus').classList.remove('flex');
+        }
+
+        function switchRiskTab(tab) {
+            currentRiskTab = tab;
+            const btn2x1 = document.getElementById('tab-2x1');
+            const btn4x2 = document.getElementById('tab-4x2');
+            const pctInput = document.getElementById('entryPercentInput');
+
+            if (tab === '2x1') {
+                btn2x1.className = "px-3 py-1 text-xs font-extrabold rounded-md bg-gold text-obsidian transition";
+                btn4x2.className = "px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-gold transition";
+                if (pctInput) pctInput.value = 10;
+            } else {
+                btn4x2.className = "px-3 py-1 text-xs font-extrabold rounded-md bg-gold text-obsidian transition";
+                btn2x1.className = "px-3 py-1 text-xs font-bold rounded-md text-slate-400 hover:text-gold transition";
+                if (pctInput) pctInput.value = 5;
+            }
+            renderRiskTable();
+        }
+
+        function formatBRL(val) {
+            if (val === '' || val === null || isNaN(val)) return 'R$ -';
+            return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function calculateRowValues(row, entryPct) {
+            const baseBank = parseFloat(row.bankroll);
+            if (isNaN(baseBank) || baseBank <= 0) {
+                return { entryAmounts: [null, null, null, null, null], finalBank: null };
+            }
+
+            const firstEntry = baseBank * (entryPct / 100);
+            const entryAmounts = [firstEntry, null, null, null, null];
+            let currentBalance = baseBank;
+
+            for (let i = 0; i < 5; i++) {
+                const stake = entryAmounts[i];
+                if (stake === null) break;
+
+                const res = row.entries[i].result;
+                const payout = (parseFloat(row.entries[i].payout) || 0) / 100;
+
+                if (res === 'WIN') {
+                    const profit = stake * payout;
+                    currentBalance += profit;
+                    if (i < 4) {
+                        entryAmounts[i + 1] = stake + profit;
+                    }
+                } else if (res === 'LOSS') {
+                    currentBalance -= stake;
+                    if (i < 4) {
+                        entryAmounts[i + 1] = firstEntry;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            const hasAnyResult = row.entries.some(e => e.result === 'WIN' || e.result === 'LOSS');
+            return {
+                entryAmounts,
+                finalBank: hasAnyResult ? currentBalance : null
+            };
+        }
+
+        function updateRiskBankroll(rowIndex, val) {
+            const parsed = parseFloat(val);
+            riskData[currentRiskTab][rowIndex].bankroll = isNaN(parsed) ? '' : parsed;
+            renderRiskTable();
+        }
+
+        function updateRiskPayout(rowIndex, entryIndex, val) {
+            const parsed = parseFloat(val);
+            riskData[currentRiskTab][rowIndex].entries[entryIndex].payout = isNaN(parsed) ? 0 : parsed;
+            renderRiskTable();
+        }
+
+        function updateRiskResult(rowIndex, entryIndex, val) {
+            riskData[currentRiskTab][rowIndex].entries[entryIndex].result = val;
+            renderRiskTable();
+        }
+
+        function recalculateAllRiskRows() {
+            renderRiskTable();
+        }
+
+        function resetRiskSheet() {
+            riskData[currentRiskTab] = createDefaultRiskRows();
+            renderRiskTable();
+        }
+
+        function renderRiskTable() {
+            const tbody = document.getElementById('riskTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const entryPct = parseFloat(document.getElementById('entryPercentInput')?.value) || 5;
+            const rows = riskData[currentRiskTab];
+
+            rows.forEach((row, rIdx) => {
+                const calc = calculateRowValues(row, entryPct);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-zinc-900/70 transition";
+
+                let entriesHtml = '';
+                for (let eIdx = 0; eIdx < 5; eIdx++) {
+                    const amount = calc.entryAmounts[eIdx];
+                    const entryObj = row.entries[eIdx];
+                    const res = entryObj.result;
+
+                    let selectStyle = "bg-obsidian text-slate-300 border-zinc-700";
+                    if (res === 'WIN') selectStyle = "bg-emerald-950/90 text-emerald-400 border-emerald-500/60 font-extrabold";
+                    if (res === 'LOSS') selectStyle = "bg-rose-950/90 text-rose-400 border-rose-500/60 font-extrabold";
+
+                    entriesHtml += `
+                        <td class="py-1.5 px-3 border-r border-zinc-800/80 text-right bg-gold/[0.03] text-gold-light font-semibold">
+                            ${formatBRL(amount)}
+                        </td>
+                        <td class="py-1.5 px-2 border-r border-zinc-800/80 text-center">
+                            <div class="inline-flex items-center bg-obsidian border border-zinc-800 rounded px-1">
+                                <input type="number" value="${entryObj.payout}" min="1" max="100"
+                                       onchange="updateRiskPayout(${rIdx}, ${eIdx}, this.value)"
+                                       class="w-9 bg-transparent text-center text-slate-200 focus:outline-none text-[11px]">
+                                <span class="text-slate-500 text-[10px]">%</span>
+                            </div>
+                        </td>
+                        <td class="py-1.5 px-2 border-r border-gold/20 text-center">
+                            <select onchange="updateRiskResult(${rIdx}, ${eIdx}, this.value)"
+                                    class="px-2 py-1 rounded border text-[11px] focus:outline-none cursor-pointer ${selectStyle}">
+                                <option value="" ${res === '' ? 'selected' : ''}>-</option>
+                                <option value="WIN" ${res === 'WIN' ? 'selected' : ''}>WIN ✓</option>
+                                <option value="LOSS" ${res === 'LOSS' ? 'selected' : ''}>LOSS ✕</option>
+                            </select>
+                        </td>
+                    `;
+                }
+
+                const finalBankColor = calc.finalBank === null
+                    ? 'text-slate-500'
+                    : (calc.finalBank >= parseFloat(row.bankroll) ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold');
+
+                tr.innerHTML = `
+                    <td class="py-1.5 px-3 border-r border-gold/20 text-center font-bold bg-gold/10 text-gold sticky left-0 z-10">
+                        ${row.day}
+                    </td>
+                    <td class="py-1.5 px-2 border-r border-gold/20 text-right">
+                        <div class="flex items-center justify-end bg-obsidian border border-gold/25 rounded px-2 py-0.5 focus-within:border-gold">
+                            <span class="text-gold/70 text-[10px] mr-1">R$</span>
+                            <input type="number" step="0.01" placeholder="0,00" value="${row.bankroll}"
+                                   onchange="updateRiskBankroll(${rIdx}, this.value)"
+                                   class="w-20 bg-transparent text-right text-slate-100 font-bold focus:outline-none text-xs">
+                        </div>
+                    </td>
+                    ${entriesHtml}
+                    <td class="py-1.5 px-4 text-right bg-gold/10 ${finalBankColor}">
+                        ${formatBRL(calc.finalBank)}
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
         }
     </script>
 </body>
